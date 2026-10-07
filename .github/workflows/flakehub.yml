@@ -40,7 +40,7 @@ jobs:
         with:
           name: sylvesterroos/hermes-agent
           tag: ${{ steps.release.outputs.tag }}
-          visibility: public
+          visibility: unlisted
 
       # Scheduled workflows stop after 60 days without repository activity;
       # re-enabling resets that clock.
