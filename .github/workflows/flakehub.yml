@@ -1,0 +1,50 @@
+# Publishes the newest NousResearch/hermes-agent release to FlakeHub as
+# sylvesterroos/hermes-agent, so flakes can follow it with a semver range.
+name: Publish upstream release to FlakeHub
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find the newest upstream release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release list -R NousResearch/hermes-agent \
+            --exclude-drafts --exclude-pre-releases --limit 30 \
+            --json tagName,publishedAt \
+            --jq '[.[] | select(.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(.publishedAt) | last | .tagName')
+          test -n "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          repository: NousResearch/hermes-agent
+          ref: refs/tags/${{ steps.release.outputs.tag }}
+          persist-credentials: false
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - uses: DeterminateSystems/flakehub-push@main
+        with:
+          name: sylvesterroos/hermes-agent
+          tag: ${{ steps.release.outputs.tag }}
+          visibility: public
+
+      # Scheduled workflows stop after 60 days without repository activity;
+      # re-enabling resets that clock.
+      - name: Keep the schedule enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/flakehub.yml/enable"
